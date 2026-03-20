@@ -3,7 +3,27 @@ import sqlite3
 import pandas as pd
 import json
 from openai import OpenAI
-from streamlit_mic_recorder import speech_to_text # 🎤 引入全新的麦克风插件
+from streamlit_mic_recorder import speech_to_text
+
+# --- ⭐ 关键修复：确保云端自动创建新账本 ⭐ ---
+def init_db():
+    conn = sqlite3.connect('ledger.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT,
+            customer_name TEXT,
+            product_name TEXT,
+            quantity INTEGER,
+            amount REAL,
+            type TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+init_db() # 每次运行都先铺好底层的表格
 
 # --- 1. 初始化 AI 核心引擎 ---
 client = OpenAI(
@@ -13,27 +33,24 @@ client = OpenAI(
 
 # --- 2. 网页基础排版设置 ---
 st.set_page_config(page_title="二批老板管账系统", layout="wide")
-st.title("📊 二批市场 AI 管账看板 V3.1 (语音智享版)")
+st.title("📊 二批市场 AI 管账看板 V3.1 (云端智享版)")
 st.write("欢迎老板！点击麦克风直接说话，或者在下方打字，AI 会自动为您记账。")
 
-# --- 3. ⭐️ 融合输入区：语音 + 文字 ⭐️ ---
-col_voice, col_text = st.columns([1, 2]) # 把输入区域分成左右两半
+# --- 3. 融合输入区：语音 + 文字 ---
+col_voice, col_text = st.columns([1, 2]) 
 
 with col_voice:
     st.info("🎤 语音记账 (点击下方开始/停止录音)")
-    # 召唤网页原生的语音识别组件
     voice_text = speech_to_text(language='zh-CN', just_once=True, key='speech_input', use_container_width=True)
 
 with col_text:
     st.info("⌨️ 文字记账")
     text_input = st.chat_input("或在这里打字：刚刚王大妈拿了10箱水...")
 
-# 判断老板到底是用嘴说的，还是用手打的
 final_input = voice_text if voice_text else text_input
 
 # --- 4. 开始算账逻辑 ---
 if final_input:
-    # 把老板说的话打印出来确认一下
     st.success(f"老板指令：【{final_input}】")
     
     with st.spinner('AI 助理正在拼命算账中...'):
@@ -118,8 +135,8 @@ if not df.empty:
                 要求：
                 1. 语气要像一个专业的合伙人，称呼对方为“老板”。
                 2. 明确指出哪个商品最赚钱，哪个客户贡献最大。
-                3. 根据目前的数据，给老板提供一条关于进货、促销或催收的务实建议。
-                4. 语言必须是接地气的大白话，不要用晦涩的财务词汇。
+                3. 根据目前的数据，给老板提供一条务实建议。
+                4. 语言必须是接地气的大白话。
                 5. 字数控制在 200 字左右。
                 """
                 
